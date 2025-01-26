@@ -252,7 +252,7 @@ if __name__ == "__main__":
     browser_manager = None
     try:
         logging.info("\n=== 初始化程序 ===")
-        ExitCursor()
+        # ExitCursor()
         logging.info("正在初始化浏览器...")
         browser_manager = BrowserManager()
         browser = browser_manager.init_browser()

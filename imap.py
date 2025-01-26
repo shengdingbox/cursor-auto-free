@@ -44,17 +44,20 @@ class ImapEmailHandler:
             raise Exception("获取验证码超时")
 
         try:
+            print("正在连接到IMAP服务器...")
             # 连接到IMAP服务器
             mail = imaplib.IMAP4_SSL(
                 self.imap_config["imap_server"], self.imap_config["imap_port"]
             )
-
+            print("连接到IMAP服务器成功")
             # 使用基本邮箱地址登录（不带别名）
             mail.login(self.base_email, self.imap_config["imap_pass"])
+            print("登录成功")
             mail.select(self.imap_config["imap_dir"])
-
+            print("选择邮箱目录成功")
             # 搜索来自 Cursor 的邮件
             status, messages = mail.search(None, "FROM", '"no-reply@cursor.sh"')
+            print("搜索邮件成功")
             if status != "OK":
                 return None
             mail_ids = messages[0].split()
@@ -63,16 +66,18 @@ class ImapEmailHandler:
                 return self.get_verification_code(retry=retry + 1)
 
             latest_mail_id = mail_ids[-1]
+            print("获取最新邮件ID成功")
             # 获取邮件内容
             status, msg_data = mail.fetch(latest_mail_id, "(RFC822)")
             if status != "OK":
                 return None
-
+            print("获取邮件内容成功")
             raw_email = msg_data[0][1]
             email_message = email.message_from_bytes(raw_email)
-
+            print("解析邮件内容成功")
             # 提取邮件正文
             body = self._extract_mail_body(email_message)
+            print("提取邮件正文成功")
             if body:
                 # 使用正则表达式查找验证码
                 # 匹配模式：
@@ -85,10 +90,11 @@ class ImapEmailHandler:
                     r"code[：:\s]*?(\d{6})",  # 简单场景
                     r"(\d{6})",  # 降级匹配：仅匹配6位数字
                 ]
-
+                print("开始匹配验证码")
                 for pattern in code_patterns:
                     code_match = re.search(pattern, body, re.IGNORECASE)
                     if code_match:
+                        print("匹配到验证码")
                         # 移除所有空白字符
                         code = re.sub(r"\s", "", code_match.group(1))
                         # 删除邮件
