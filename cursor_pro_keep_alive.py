@@ -120,6 +120,7 @@ def sign_up_account(browser, tab):
 
     handle_turnstile(tab)
 
+    # 点击验证码登录
     try:
         if tab.ele("@value=magic-code"):
             tab.ele("@value=magic-code").click()
@@ -131,19 +132,12 @@ def sign_up_account(browser, tab):
 
     handle_turnstile(tab)
 
-    time.sleep(random.uniform(1, 3))
-    if tab.ele("This email is not available."):
-        logging.error("注册失败：邮箱已被使用")
-        return False
-
     # 获取邮箱验证码
     email_handler = EmailVerificationHandler()
     code = email_handler.get_verification_code()
     if not code:
         logging.error("获取邮箱验证码失败")
         return False
-
-    tab.ele("@value=magic-code").input(code)
 
     # 输入验证码
     logging.info("正在输入验证码...")
@@ -152,7 +146,8 @@ def sign_up_account(browser, tab):
         tab.ele(f"@data-index={i}").input(digit)
         time.sleep(random.uniform(0.1, 0.3))
         i += 1
-        logging.info("验证码输入完成")
+
+    handle_turnstile(tab)
 
     while True:
         try:
@@ -177,12 +172,6 @@ def sign_up_account(browser, tab):
                 break
         except Exception as e:
             logging.error(f"验证码处理过程出错: {str(e)}")
-
-    handle_turnstile(tab)
-    wait_time = random.randint(3, 6)
-    for i in range(wait_time):
-        logging.info(f"等待系统处理中... 剩余 {wait_time-i} 秒")
-        time.sleep(1)
 
     logging.info("正在获取账户信息...")
     tab.get(settings_url)
@@ -263,7 +252,7 @@ if __name__ == "__main__":
     browser_manager = None
     try:
         logging.info("\n=== 初始化程序 ===")
-        # ExitCursor()
+        ExitCursor()
         logging.info("正在初始化浏览器...")
         browser_manager = BrowserManager()
         browser = browser_manager.init_browser()

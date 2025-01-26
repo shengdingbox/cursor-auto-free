@@ -49,8 +49,6 @@ class ImapEmailHandler:
                 self.imap_config["imap_server"], self.imap_config["imap_port"]
             )
 
-            print(self.base_email, self.imap_config["imap_pass"])
-
             # 使用基本邮箱地址登录（不带别名）
             mail.login(self.base_email, self.imap_config["imap_pass"])
             mail.select(self.imap_config["imap_dir"])
@@ -75,7 +73,6 @@ class ImapEmailHandler:
 
             # 提取邮件正文
             body = self._extract_mail_body(email_message)
-            print(body)
             if body:
                 # 使用正则表达式查找验证码
                 # 匹配模式：
