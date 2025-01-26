@@ -105,23 +105,11 @@ def update_cursor_auth(email=None, access_token=None, refresh_token=None):
 
 def sign_up_account(browser, tab):
     logging.info("=== 开始注册账号流程 ===")
-    logging.info(f"正在访问注册页面: {sign_up_url}")
-    tab.get(sign_up_url)
 
     try:
-        if tab.ele("@name=first_name"):
+        if tab.ele("@name=email"):
             logging.info("正在填写个人信息...")
-            tab.actions.click("@name=first_name").input(first_name)
-            logging.info(f"已输入名字: {first_name}")
-            time.sleep(random.uniform(1, 3))
-
-            tab.actions.click("@name=last_name").input(last_name)
-            logging.info(f"已输入姓氏: {last_name}")
-            time.sleep(random.uniform(1, 3))
-
             tab.actions.click("@name=email").input(account)
-            logging.info(f"已输入邮箱: {account}")
-            time.sleep(random.uniform(1, 3))
 
             logging.info("提交个人信息...")
             tab.actions.click("@type=submit")
@@ -133,25 +121,38 @@ def sign_up_account(browser, tab):
     handle_turnstile(tab)
 
     try:
-        if tab.ele("@name=password"):
-            logging.info("正在设置密码...")
-            tab.ele("@name=password").input(password)
-            time.sleep(random.uniform(1, 3))
-
-            logging.info("提交密码...")
-            tab.ele("@type=submit").click()
-            logging.info("密码设置完成，等待系统响应...")
+        if tab.ele("@value=magic-code"):
+            tab.ele("@value=magic-code").click()
+            logging.info("使用验证码登录...")
 
     except Exception as e:
-        logging.error(f"密码设置失败: {str(e)}")
+        logging.error(f"验证码登录失败: {str(e)}")
         return False
+
+    handle_turnstile(tab)
 
     time.sleep(random.uniform(1, 3))
     if tab.ele("This email is not available."):
         logging.error("注册失败：邮箱已被使用")
         return False
 
-    handle_turnstile(tab)
+    # 获取邮箱验证码
+    email_handler = EmailVerificationHandler()
+    code = email_handler.get_verification_code()
+    if not code:
+        logging.error("获取邮箱验证码失败")
+        return False
+
+    tab.ele("@value=magic-code").input(code)
+
+    # 输入验证码
+    logging.info("正在输入验证码...")
+    i = 0
+    for digit in code:
+        tab.ele(f"@data-index={i}").input(digit)
+        time.sleep(random.uniform(0.1, 0.3))
+        i += 1
+        logging.info("验证码输入完成")
 
     while True:
         try:
@@ -218,7 +219,7 @@ class EmailGenerator:
     ):
         configInstance = Config()
         configInstance.print_config()
-        self.domain = configInstance.get_domain()
+        self.imap_config = configInstance.get_imap()
         self.default_password = password
         self.default_first_name = self.generate_random_name()
         self.default_last_name = self.generate_random_name()
@@ -231,11 +232,21 @@ class EmailGenerator:
         )
         return first_letter + rest_letters
 
-    def generate_email(self, length=8):
-        """生成随机邮箱地址"""
-        random_str = "".join(random.choices("abcdefghijklmnopqrstuvwxyz", k=length))
-        timestamp = str(int(time.time()))[-6:]  # 使用时间戳后6位
-        return f"{random_str}{timestamp}@{self.domain}"
+    def generate_email(self):
+        """生成带别名的邮箱地址
+        例如：
+        - Gmail: base_email+random_alias@gmail.com
+        - Outlook: base_email+random_alias@outlook.com
+        """
+        base_email = self.imap_config["imap_user"]
+        if "@" not in base_email:
+            raise ValueError("基础邮箱地址格式错误")
+
+        username, domain = base_email.split("@")
+        random_digits = "".join(random.choices("0123456789", k=4))
+        alias = random_digits
+
+        return f"{username}+{alias}@{domain}"
 
     def get_account_info(self):
         """获取完整的账号信息"""
@@ -252,7 +263,7 @@ if __name__ == "__main__":
     browser_manager = None
     try:
         logging.info("\n=== 初始化程序 ===")
-        ExitCursor()
+        # ExitCursor()
         logging.info("正在初始化浏览器...")
         browser_manager = BrowserManager()
         browser = browser_manager.init_browser()
