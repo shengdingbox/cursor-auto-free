@@ -140,15 +140,3 @@ class ImapEmailHandler:
                 except Exception as e:
                     logging.error(f"解码邮件正文失败: {e}")
         return ""
-
-
-if __name__ == "__main__":
-    imap_config = {
-        "imap_server": "imap.gmail.com",
-        "imap_port": 993,
-        "imap_dir": "INBOX",
-        "imap_user": "chengchongzhen6@gmail.com",
-        "imap_pass": "fams vcrm bthm obnj",
-    }
-    imap_handler = ImapEmailHandler(imap_config)
-    print(imap_handler.get_verification_code())
