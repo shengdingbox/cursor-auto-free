@@ -7,27 +7,12 @@ from logger import logging
 class Config:
     def __init__(self):
         # 获取应用程序的根目录路径
-        if getattr(sys, "frozen", False):
-            # 如果是打包后的可执行文件
-            application_path = os.path.dirname(sys.executable)
-        else:
-            # 如果是开发环境
-            application_path = os.path.dirname(os.path.abspath(__file__))
-
-        # 指定 .env 文件的路径
-        dotenv_path = os.path.join(application_path, ".env")
-
-        if not os.path.exists(dotenv_path):
-            raise FileNotFoundError(f"文件 {dotenv_path} 不存在")
-
-        # 加载 .env 文件
-        load_dotenv(dotenv_path)
 
         self.imap = False
-        self.temp_mail = os.getenv("TEMP_MAIL", "").strip().split("@")[0]
-        self.temp_mail_epin = os.getenv("TEMP_MAIL_EPIN", "").strip()
-        self.temp_mail_ext = os.getenv("TEMP_MAIL_EXT", "").strip()
-        self.domain = os.getenv("DOMAIN", "").strip()
+        self.temp_mail = "shengdingbox".strip().split("@")[0]
+        self.temp_mail_epin = "shengdingbox".strip()
+        self.temp_mail_ext = "@mailto.plus".strip()
+        self.domain = "wgets.org".strip()
 
         # 如果临时邮箱为null则加载IMAP
         if self.temp_mail == "null":
