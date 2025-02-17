@@ -7,6 +7,7 @@ from enum import Enum
 from typing import Optional
 
 from exit_cursor import ExitCursor
+import go_cursor_help
 import patch_cursor_get_machine_id
 from reset_machine import MachineIDResetter
 
@@ -149,6 +150,9 @@ def handle_turnstile(tab, max_retries: int = 2, retry_interval: tuple = (1, 2)) 
 
         # 超出最大重试次数
         logging.error(f"验证失败 - 已达到最大重试次数 {max_retries}")
+        logging.error(
+            "请前往开源项目查看更多信息：https://github.com/chengazhen/cursor-auto-free"
+        )
         save_screenshot(tab, "failed")
         return False
 
@@ -298,6 +302,9 @@ def sign_up_account(browser, tab):
             usage_info = usage_ele.text
             total_usage = usage_info.split("/")[-1].strip()
             logging.info(f"账户可用额度上限: {total_usage}")
+            logging.info(
+                "请前往开源项目查看更多信息：https://github.com/chengazhen/cursor-auto-free"
+            )
     except Exception as e:
         logging.error(f"获取账户额度信息失败: {str(e)}")
 
@@ -374,9 +381,22 @@ def check_cursor_version():
 def reset_machine_id(greater_than_0_45):
     if greater_than_0_45:
         # 提示请手动执行脚本 https://github.com/chengazhen/cursor-auto-free/blob/main/patch_cursor_get_machine_id.py
-        patch_cursor_get_machine_id.patch_cursor_get_machine_id()
+        go_cursor_help.go_cursor_help()
     else:
         MachineIDResetter().reset_machine_ids()
+
+
+def print_end_message():
+    logging.info("\n\n\n\n\n")
+    logging.info("=" * 30)
+    logging.info("所有操作已完成")
+    logging.info("\n=== 获取更多信息 ===")
+    logging.info("🔥 QQ交流群: 1034718338")
+    logging.info("📺 B站UP主: 想回家的前端")
+    logging.info("=" * 30)
+    logging.info(
+        "请前往开源项目查看更多信息：https://github.com/chengazhen/cursor-auto-free"
+    )
 
 
 if __name__ == "__main__":
@@ -385,7 +405,7 @@ if __name__ == "__main__":
     browser_manager = None
     try:
         logging.info("\n=== 初始化程序 ===")
-        # ExitCursor()
+        ExitCursor()
 
         # 提示用户选择操作模式
         print("\n请选择操作模式:")
@@ -406,6 +426,7 @@ if __name__ == "__main__":
             # 仅执行重置机器码
             reset_machine_id(greater_than_0_45)
             logging.info("机器码重置完成")
+            print_end_message()
             sys.exit(0)
 
         logging.info("正在初始化浏览器...")
@@ -427,7 +448,9 @@ if __name__ == "__main__":
 
         logging.info("正在初始化邮箱验证模块...")
         email_handler = EmailVerificationHandler()
-
+        logging.info(
+            "请前往开源项目查看更多信息：https://github.com/chengazhen/cursor-auto-free"
+        )
         logging.info("\n=== 配置信息 ===")
         login_url = "https://authenticator.cursor.sh"
         sign_up_url = "https://authenticator.cursor.sh/sign-up"
@@ -460,10 +483,13 @@ if __name__ == "__main__":
                 update_cursor_auth(
                     email=account, access_token=token, refresh_token=token
                 )
-
+                logging.info(
+                    "请前往开源项目查看更多信息：https://github.com/chengazhen/cursor-auto-free"
+                )
                 logging.info("重置机器码...")
                 reset_machine_id(greater_than_0_45)
                 logging.info("所有操作已完成")
+                print_end_message()
             else:
                 logging.error("获取会话令牌失败，注册流程未完成")
 

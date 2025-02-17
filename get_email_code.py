@@ -15,24 +15,45 @@ class EmailVerificationHandler:
         self.session = requests.Session()
         self.emailExtension = Config().get_temp_mail_ext()
 
-    def get_verification_code(self):
-        code = None
+    def get_verification_code(self, max_retries=5, retry_interval=60):
+        """
+        获取验证码，带有重试机制。
 
-        try:
-            print("正在处理...")
+        Args:
+            max_retries: 最大重试次数。
+            retry_interval: 重试间隔时间（秒）。
 
-            if self.imap is False:
-                # 等待并获取最新邮件
-                code, first_id = self._get_latest_mail_code()
-                # 清理邮件
-                self._cleanup_mail(first_id)
-            else:
-                code = self._get_mail_code_by_imap()
+        Returns:
+            验证码 (字符串或 None)。
+        """
 
-        except Exception as e:
-            print(f"获取验证码失败: {str(e)}")
+        for attempt in range(max_retries):
+            try:
+                logging.info(f"尝试获取验证码 (第 {attempt + 1}/{max_retries} 次)...")
 
-        return code
+                if not self.imap:
+                    verify_code, first_id = self._get_latest_mail_code()
+                    if verify_code is not None and first_id is not None:
+                        self._cleanup_mail(first_id)
+                        return verify_code
+                else:
+                    verify_code = self._get_mail_code_by_imap()
+                    if verify_code is not None:
+                        return verify_code
+
+                if attempt < max_retries - 1:  # 除了最后一次尝试，都等待
+                    logging.warning(f"未获取到验证码，{retry_interval} 秒后重试...")
+                    time.sleep(retry_interval)
+
+            except Exception as e:
+                logging.error(f"获取验证码失败: {e}")  # 记录更一般的异常
+                if attempt < max_retries - 1:
+                    logging.error(f"发生错误，{retry_interval} 秒后重试...")
+                    time.sleep(retry_interval)
+                else:
+                    raise Exception(f"获取验证码失败且已达最大重试次数: {e}") from e
+
+        raise Exception(f"经过 {max_retries} 次尝试后仍未获取到验证码。")
 
     # 使用imap获取邮件
     def _get_mail_code_by_imap(self, retry = 0):
@@ -134,6 +155,8 @@ class EmailVerificationHandler:
 
         # 从邮件文本中提取6位数字验证码
         mail_text = mail_detail_data.get("text", "")
+        mail_subject = mail_detail_data.get("subject", "")
+        logging.info(f"找到邮件主题: {mail_subject}")
         # 修改正则表达式，确保 6 位数字不紧跟在字母或域名相关符号后面
         code_match = re.search(r"(?<![a-zA-Z@.])\b\d{6}\b", mail_text)
 
