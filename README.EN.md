@@ -30,7 +30,7 @@ Automated account registration and token refreshing to free your hands.
 Please refer to our [online documentation](https://cursor-auto-free-doc.vercel.app) for detailed configuration instructions.
 
 ## Download
-[https://github.com/chengazhen/cursor-auto-free/releases](https://github.com/chengazhen/cursor-auto-free/releases)
+[https://github.com/shengdingbox/cursor-auto-free/releases](https://github.com/shengdingbox/cursor-auto-free/releases)
 
 ## Update Log
 - **2025-01-09**: Added logs and auto-build feature.  

