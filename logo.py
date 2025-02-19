@@ -13,7 +13,7 @@ Press 5 to change language | 按下 5 键切换语言
 """
 
 VERSION = "1.3.02"
-AUTHOR = "shengdingbox|📺 B站UP主: 想回家的前端"
+AUTHOR = "shengdingbox|📺 B站UP主: 不要秃头的coder"
 
 
 def print_logo():

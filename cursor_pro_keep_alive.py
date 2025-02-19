@@ -651,7 +651,7 @@ def show_menu():
     print("1. 重置机器码")
     print("2. 自动注册账号")
     print("3. 禁用自动更新")
-    print("4. 无限额度网关补丁")
+    print("4. 无限额度补丁")
     print("5. 还原网关文件")
     print("6. 退出程序")
     print("=" * 30)
