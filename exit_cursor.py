@@ -65,4 +65,5 @@ def ExitCursor(timeout=5):
         return False
 
 if __name__ == "__main__":
-    ExitCursor()
+    # ExitCursor()
+    pass
